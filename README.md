@@ -3,8 +3,8 @@ This repository details my typical development stack. It is designed for use on 
 GUI access) and largely uses terminal based tools. It is current as of 4/19/2023.
 
 The basic stack of tools I use are:
+  * Terminal: I'm trying [wave](https://www.waveterm.dev/download) right now, and have previously used [warp](https://www.warp.dev/).
   * `bash` and [starship](https://starship.rs/) for shell
-  * `tmux` for terminal multiplexing and session management.
   * `Neovim` for editing.
   * Github Copilot integrated into neovim.
 
@@ -27,8 +27,7 @@ cd ..
 rm -r tmp_fonts
 ```
 
-You may need to restart things to get this to work. This step is necessary for some packages in `neovim` and
-`tmux` to work properly.
+You may need to restart things to get this to work. This step is necessary for some packages in `neovim` to work properly.
 
 ## Neovim AppImage
 Add to the very top of your bashrc `alias nvim=~/PATH/TO/nvim.appimage`
@@ -52,12 +51,6 @@ eval "$(starship init bash)"
 ```
 
 I also add some aliases stored in the `~/.bash_aliases` file.
-
-# Tmux Setup
-I use [Tmux Plugin Manager](https://github.com/tmux-plugins/tpm) for tmux plugins. Install it and enable it
-per directions on their source.
-
-The packages I used are all listed in the `.tmux.conf` file.
 
 # Neovim
 Neovim packages are managed by [lazy.nvim](https://github.com/folke/lazy.nvim). The configuration files I use
