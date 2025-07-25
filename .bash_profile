@@ -116,29 +116,4 @@ if ! shopt -oq posix; then
   fi
 fi
 
-# For RVM Support
-export PATH="$PATH:$HOME/.rvm/bin" # Add RVM to PATH for scripting
-# For Faiss support
-# TODO(mmd): Make work.
-export PATH="/scratch/lib/faiss:$PATH"
-# For ml_toolkit, gene_expression_modelling
-export PYTHONPATH="/scratch/mmd/neural_hyperparameter_dists:/scratch/mmd/cnn_graph:/scratch/mmd/ml_toolkit:/scratch/mmd/gene_expression_modelling:$PATH"
-export PYTHONPATH="/scratch/mmd/TCN:$PYTHONPATH"
-
-# Jupyter Notebooks on AFS
-if [ -d "/scratch/" ]; then
-  export JUPYTER_CONFIG_DIR="/scratch/.jupyter_storage/JUPYTER_CONFIG_DIR/$USER"
-  export JUPYTER_PATH="/scratch/.jupyter_storage/JUPYTER_PATH/$USER"
-  export JUPYTER_RUNTIME_PATH="/scratch/.jupyter_storage/JUPYTER_RUNTIME_PATH/$USER"
-
-  for dir in $JUPYTER_PATH $JUPYTER_CONFIG_DIR $JUPYTER_RUNTIME_PATH; do
-    if [ ! -d "$dir" ]; then
-      echo "Making $dir"
-      mkdir -p $dir
-    fi
-  done
-fi
-
-export GOPATH=~/go:~/Study/MIT\ Coursework/6.824\ Distributed\ Systems/Labs/6.824-Labs
-
 source ~/liquidprompt/liquidprompt
