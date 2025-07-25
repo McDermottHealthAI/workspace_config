@@ -22,6 +22,7 @@ return {
       words = { enabled = true },
     },
   },
+  {"lark-parser/vim-lark-syntax"},
   {"williamboman/mason.nvim"},
   {"nvim-tree/nvim-web-devicons"},
   {
@@ -54,7 +55,7 @@ return {
     config = function()
       require('nvim-treesitter.configs').setup({
         ensure_installed = 'all',
-        highlight = { enable = true },
+        highlight = { enable = true, additional_vim_regex_highlighting = {'python'} },
       })
     end,
   },
