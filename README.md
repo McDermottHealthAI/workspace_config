@@ -58,3 +58,5 @@ with `lazy.nvm` are in the `.config/nvim` directory and need to be copied to the
 directory on your machine.
 
 To install lazy.nvim, follow the instructions here: https://lazy.folke.io/installation
+
+Additionally, for clipboard integration, on linux you must have something like `xclip` installed: `sudo apt-get install xclip`. Otherwise you can remove the line setting the clipboard to `unamedplus` in the `settings.lua` file.
