@@ -89,4 +89,5 @@ Run `curl -LsSf https://astral.sh/uv/install.sh | sh`.
 
 # `tmux` Setup (only for remote servers)
 My `tmux` configuration is in the `.tmux.conf` file. Simply copy this file to your home directory on the
-remote server.
+remote server. To manage tmux plugins, I use [tpm](https://github.com/tmux-plugins/tpm); install this via the
+instructions on the prior page.
