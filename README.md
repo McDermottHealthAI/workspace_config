@@ -26,7 +26,7 @@ To install, simply download the zip file and extract the font files inside to yo
 
 ```
 mkdir tmp_fonts
-mkdir ~/.local/share/fonts
+mkdir -p ~/.local/share/fonts
 cd tmp_fonts
 wget https://github.com/ryanoasis/nerd-fonts/releases/download/v2.3.3/RobotoMono.zip
 unzip RobotoMono.zip
