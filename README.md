@@ -10,6 +10,9 @@ The basic stack of tools I use are:
   * Github Copilot integrated into neovim.
   * [uv](https://docs.astral.sh/uv/getting-started/installation/) for python package management.
 
+On ssh connections I use [tmux](https://github.com/tmux/tmux/wiki) for terminal multiplexing; I don't use this
+locally as the warp terminal handles this for me.
+
 # Curl
 Install `curl` via apt:
 ```
@@ -83,3 +86,7 @@ file.
 
 # `uv` Setup
 Run `curl -LsSf https://astral.sh/uv/install.sh | sh`.
+
+# `tmux` Setup (only for remote servers)
+My `tmux` configuration is in the `.tmux.conf` file. Simply copy this file to your home directory on the
+remote server.
