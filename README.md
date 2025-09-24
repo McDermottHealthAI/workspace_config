@@ -9,6 +9,7 @@ The basic stack of tools I use are:
   * `Neovim` for editing.
   * Github Copilot integrated into neovim.
   * [uv](https://docs.astral.sh/uv/getting-started/installation/) for python package management.
+  * [ripgrep](https://github.com/BurntSushi/ripgrep) for searching files quickly.
 
 On ssh connections I use [tmux](https://github.com/tmux/tmux/wiki) for terminal multiplexing; I don't use this
 locally as the warp terminal handles this for me.
@@ -91,3 +92,9 @@ Run `curl -LsSf https://astral.sh/uv/install.sh | sh`.
 My `tmux` configuration is in the `.tmux.conf` file. Simply copy this file to your home directory on the
 remote server. To manage tmux plugins, I use [tpm](https://github.com/tmux-plugins/tpm); install this via the
 instructions on the prior page.
+
+# Ripgrep Setup
+Install `ripgrep` via apt:
+```bash
+sudo apt-get install ripgrep
+```
