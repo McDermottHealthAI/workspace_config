@@ -1,5 +1,3 @@
-vim.g.mapleader = "\\"
-
 local map = vim.api.nvim_set_keymap
 map('n', '<Leader>bn', ':bn<CR>', { noremap = true, silent = true })
 map('n', '<Leader>bp', ':bp<CR>', { noremap = true, silent = true })

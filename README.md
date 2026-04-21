@@ -1,6 +1,6 @@
 # Configuration Files & Development Setup
 This repository details my typical development stack. It is designed for use on remote servers (often without
-GUI access) and largely uses terminal based tools. It is current as of 4/19/2023.
+GUI access) and largely uses terminal based tools. It is current as of 2026-04-21.
 
 The basic stack of tools I use are:
   * Terminal: I'm trying [warp](https://www.warp.dev/) right now.
@@ -42,7 +42,7 @@ rm -r tmp_fonts
 You may need to restart things to get this to work. This step is necessary for some packages in `neovim` to work properly.
 
 ## InputRC
-The only notable change in the bash setup is that I add the following to my `.inputrc` such that the up-arrow
+The only notable change in the bash setup is that I add the following to `~/.inputrc` such that the up-arrow
 and down-arrow perform reverse history search given the text currently typed.
 ```
 ## arrow up
@@ -51,12 +51,24 @@ and down-arrow perform reverse history search given the text currently typed.
 "\e[B":history-search-forward
 ```
 
+Copy the file from this repo to your home directory:
+```bash
+cp .inputrc ~/.inputrc
+```
+
 ## Starship
-After installing starship and moving `starship.toml` to `.config/`, you also need to enable it. Add this to
-your `~/.bashrc` or equivalent:
+Install starship via the official installer (no sudo required; installs to `~/.local/bin`):
 
 ```bash
-eval "$(starship init bash)"
+curl -sS https://starship.rs/install.sh | sh -s -- --yes --bin-dir ~/.local/bin
+```
+
+Copy the config into place and enable starship in your shell:
+
+```bash
+mkdir -p ~/.config
+cp starship.toml ~/.config/starship.toml
+echo 'eval "$(starship init bash)"' >> ~/.bashrc
 ```
 
 I also add some aliases stored in the `~/.bash_aliases` file.
@@ -76,10 +88,17 @@ sudo apt-get install build-essential
 Then visit [this page](https://nodejs.org/en/download/) to install the latest version of nodejs and npm.
 
 Neovim packages are managed by [lazy.nvim](https://github.com/folke/lazy.nvim). The configuration files I use
-with `lazy.nvm` are in the `.config/nvim` directory and need to be copied to the local `.config/nvim`
-directory on your machine.
+with `lazy.nvim` are in the `.config/nvim` directory and need to be copied to the local `~/.config/nvim`
+directory on your machine:
 
-To install lazy.nvim, follow the instructions here: https://lazy.folke.io/installation
+```bash
+mkdir -p ~/.config
+cp -r .config/nvim ~/.config/nvim
+```
+
+The `config/lazy.lua` file bootstraps lazy.nvim on first launch, so you do not need to install it
+separately. Launching `nvim` for the first time will clone lazy.nvim and install all plugins listed in
+`plugins.lua`.
 
 Additionally, for clipboard integration, on linux you must have something like `xclip` installed: `sudo apt-get
 install xclip`. Otherwise you can remove the line setting the clipboard to `unamedplus` in the `settings.lua`
@@ -89,9 +108,20 @@ file.
 Run `curl -LsSf https://astral.sh/uv/install.sh | sh`.
 
 # `tmux` Setup (only for remote servers)
-My `tmux` configuration is in the `.tmux.conf` file. Simply copy this file to your home directory on the
-remote server. To manage tmux plugins, I use [tpm](https://github.com/tmux-plugins/tpm); install this via the
-instructions on the prior page.
+My `tmux` configuration is in the `.tmux.conf` file. Copy this file to your home directory on the
+remote server:
+
+```bash
+cp .tmux.conf ~/.tmux.conf
+```
+
+To manage tmux plugins, I use [tpm](https://github.com/tmux-plugins/tpm). Install it via:
+
+```bash
+git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
+```
+
+Then start tmux and press `prefix + I` (prefix is `C-x` in this config) to fetch plugins.
 
 # Ripgrep Setup
 Install `ripgrep` via apt:
