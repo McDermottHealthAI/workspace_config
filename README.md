@@ -46,8 +46,12 @@ and `nvim` now errors on launch with *"failed to run config for nvim-treesitter"
    ```bash
    rm -rf ~/.local/share/nvim/lazy/nvim-treesitter
    ```
-   Then launch `nvim` — lazy.nvim will re-clone the pinned `main` branch and the new `config` callback will
-   kick off `:TSInstall all` asynchronously. Parsers take a few minutes to compile on first run.
+   **Warning:** this discards anything you may have edited or checked out inside that directory. If you
+   maintain local patches there, use `git -C ~/.local/share/nvim/lazy/nvim-treesitter checkout main`
+   instead. Then launch `nvim` — lazy.nvim will re-clone (or switch) to the pinned `main` branch and the
+   new `config` callback will kick off `:TSInstall all` asynchronously. Budget 20-40 minutes for the full
+   parser set to compile on first run (longer on cold aarch64 boxes). Watch progress with `:Lazy log` and
+   `:TSLog`.
 5. Watch `:messages` and `:Lazy log` for install errors. If a specific parser fails, `:TSInstall <lang>`
    retries just that one.
 

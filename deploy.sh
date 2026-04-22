@@ -22,13 +22,21 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TIMESTAMP="$(date +%Y%m%d%H%M%S)"
 TREE_SITTER_VERSION="v0.26.8"
-FONT_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/v2.3.3/RobotoMono.zip"
+TREE_SITTER_MIN_VERSION="0.26.1"
+FONT_VERSION="v2.3.3"
+FONT_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${FONT_VERSION}/RobotoMono.zip"
 
 SKIP_APT=0 SKIP_FONTS=0 SKIP_NEOVIM=0 SKIP_STARSHIP=0 SKIP_TMUX=0 SKIP_UV=0 ASSUME_YES=0
 
-log()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
-warn() { printf '\033[1;33m!!!\033[0m %s\n' "$*" >&2; }
-die()  { printf '\033[1;31mxxx\033[0m %s\n' "$*" >&2; exit 1; }
+if [[ -t 1 ]]; then
+  C_BLUE=$'\033[1;34m' C_YELLOW=$'\033[1;33m' C_RED=$'\033[1;31m' C_RESET=$'\033[0m'
+else
+  C_BLUE='' C_YELLOW='' C_RED='' C_RESET=''
+fi
+
+log()  { printf '%s==>%s %s\n' "$C_BLUE"   "$C_RESET" "$*"; }
+warn() { printf '%s!!!%s %s\n' "$C_YELLOW" "$C_RESET" "$*" >&2; }
+die()  { printf '%sxxx%s %s\n' "$C_RED"    "$C_RESET" "$*" >&2; exit 1; }
 
 usage() { sed -n '2,18p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 
@@ -55,8 +63,13 @@ confirm() {
 
 backup_then_copy() {
   local src="$1" dst="$2"
-  if [[ -e "$dst" && ! -L "$dst" ]]; then
-    # Only back up if content would actually change.
+  if [[ -L "$dst" ]]; then
+    # Symlink (e.g., from a stow-managed dotfile tree): preserve it by moving
+    # rather than overwriting with cp, which would dereference and stomp it.
+    mv "$dst" "${dst}.bak.${TIMESTAMP}"
+    log "backed up existing symlink $dst -> ${dst}.bak.${TIMESTAMP}"
+  elif [[ -e "$dst" ]]; then
+    # Regular file: only back up if content would actually change.
     if ! cmp -s "$src" "$dst" 2>/dev/null; then
       cp -a "$dst" "${dst}.bak.${TIMESTAMP}"
       log "backed up existing $dst -> ${dst}.bak.${TIMESTAMP}"
@@ -101,12 +114,17 @@ install_apt_base() {
 install_fonts() {
   (( SKIP_FONTS == 1 )) && { log "skipping fonts"; return 0; }
   local fontdir="$HOME/.local/share/fonts"
+  # Version-pinned sentinel. The archive ships files like
+  # `Roboto Mono Bold Nerd Font Complete.ttf` (with spaces), which makes
+  # glob-based idempotency checks fragile; a sentinel sidesteps that and
+  # also lets us detect when we need to refresh for a new FONT_VERSION.
+  local sentinel="$fontdir/.robotomono-nerdfont-${FONT_VERSION}.installed"
   mkdir -p "$fontdir"
-  if ls "$fontdir"/RobotoMono*NerdFont*.ttf >/dev/null 2>&1; then
-    log "RobotoMono NerdFont already installed"
+  if [[ -f "$sentinel" ]]; then
+    log "RobotoMono NerdFont ${FONT_VERSION} already installed"
     return 0
   fi
-  log "installing RobotoMono NerdFont"
+  log "installing RobotoMono NerdFont ${FONT_VERSION}"
   local tmp; tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' RETURN
   ( cd "$tmp" && curl -LsSfO "$FONT_URL" && unzip -q RobotoMono.zip )
@@ -114,6 +132,7 @@ install_fonts() {
   if command -v fc-cache >/dev/null 2>&1; then
     fc-cache -f "$fontdir" >/dev/null 2>&1 || true
   fi
+  touch "$sentinel"
 }
 
 install_inputrc() {
@@ -162,12 +181,20 @@ install_neovim() {
   local ts_bin="$HOME/.local/bin/tree-sitter"
   local need_install=1
   if [[ -x "$ts_bin" ]]; then
-    local have; have="$("$ts_bin" --version 2>/dev/null | awk '{print $NF}' || echo 0.0.0)"
-    if printf '%s\n%s\n' "0.26.1" "$have" | sort -V -C 2>/dev/null; then
-      log "tree-sitter-cli $have already installed"
-      need_install=0
+    # Output format across versions is "tree-sitter X.Y.Z" on stdout line 1.
+    # Pull the last token of line 1 and strip a leading `v` if some future
+    # release adds one. Validate the shape before comparing.
+    local have
+    have="$("$ts_bin" --version 2>/dev/null | awk 'NR==1{print $NF}' | sed 's/^v//')"
+    if [[ "$have" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      if printf '%s\n%s\n' "$TREE_SITTER_MIN_VERSION" "$have" | sort -V -C 2>/dev/null; then
+        log "tree-sitter-cli $have already installed"
+        need_install=0
+      else
+        log "tree-sitter-cli $have is older than $TREE_SITTER_MIN_VERSION; upgrading"
+      fi
     else
-      log "tree-sitter-cli $have is too old; upgrading"
+      warn "tree-sitter-cli present at $ts_bin but --version output is unparseable; reinstalling"
     fi
   fi
   if (( need_install == 1 )); then
@@ -192,7 +219,7 @@ install_neovim() {
     cp -r "$REPO_DIR/.config/nvim" "$HOME/.config/nvim"
   fi
 
-  warn "launch 'nvim' once to let lazy.nvim install plugins and parsers (this can take a few minutes)"
+  warn "launch 'nvim' once to let lazy.nvim install plugins; nvim-treesitter will then compile all parsers in the background — budget 20-40 minutes on first run (cold aarch64 hosts fall on the higher end). Watch progress with ':Lazy log' and ':TSLog'."
 }
 
 install_uv() {
