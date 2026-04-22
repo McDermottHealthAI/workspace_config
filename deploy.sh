@@ -12,7 +12,6 @@
 #   --skip-starship     don't install starship or modify ~/.bashrc
 #   --skip-tmux         don't copy tmux config or install tpm
 #   --skip-uv           don't install uv
-#   --yes               assume yes for any interactive prompt
 #   -h, --help          show this help
 #
 # Requires: bash, curl, git. Sudo is only used for apt.
@@ -26,7 +25,7 @@ TREE_SITTER_MIN_VERSION="0.26.1"
 FONT_VERSION="v2.3.3"
 FONT_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${FONT_VERSION}/RobotoMono.zip"
 
-SKIP_APT=0 SKIP_FONTS=0 SKIP_NEOVIM=0 SKIP_STARSHIP=0 SKIP_TMUX=0 SKIP_UV=0 ASSUME_YES=0
+SKIP_APT=0 SKIP_FONTS=0 SKIP_NEOVIM=0 SKIP_STARSHIP=0 SKIP_TMUX=0 SKIP_UV=0
 
 if [[ -t 1 ]]; then
   C_BLUE=$'\033[1;34m' C_YELLOW=$'\033[1;33m' C_RED=$'\033[1;31m' C_RESET=$'\033[0m'
@@ -38,7 +37,7 @@ log()  { printf '%s==>%s %s\n' "$C_BLUE"   "$C_RESET" "$*"; }
 warn() { printf '%s!!!%s %s\n' "$C_YELLOW" "$C_RESET" "$*" >&2; }
 die()  { printf '%sxxx%s %s\n' "$C_RED"    "$C_RESET" "$*" >&2; exit 1; }
 
-usage() { sed -n '2,18p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,17p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -48,18 +47,11 @@ while [[ $# -gt 0 ]]; do
     --skip-starship) SKIP_STARSHIP=1 ;;
     --skip-tmux)     SKIP_TMUX=1 ;;
     --skip-uv)       SKIP_UV=1 ;;
-    --yes|-y)        ASSUME_YES=1 ;;
     -h|--help)       usage; exit 0 ;;
     *)               die "unknown flag: $1 (try --help)" ;;
   esac
   shift
 done
-
-confirm() {
-  (( ASSUME_YES == 1 )) && return 0
-  read -r -p "$1 [y/N] " reply
-  [[ "$reply" =~ ^[Yy]$ ]]
-}
 
 backup_then_copy() {
   local src="$1" dst="$2"
@@ -98,8 +90,16 @@ apt_install() {
 
 preflight() {
   [[ "$(uname -s)" == "Linux" ]] || die "this script targets Linux; detected $(uname -s)"
-  command -v curl >/dev/null 2>&1 || apt_install curl
-  command -v git  >/dev/null 2>&1 || apt_install git
+  if (( SKIP_APT == 1 )); then
+    # apt steps are off, so any required dep that's missing won't be auto-installed —
+    # fail loudly here instead of crashing later in an unrelated step.
+    command -v curl >/dev/null 2>&1 || die "--skip-apt was set but 'curl' is missing; install it manually first"
+    command -v git  >/dev/null 2>&1 || die "--skip-apt was set but 'git' is missing; install it manually first"
+  else
+    command -v apt-get >/dev/null 2>&1 || die "'apt-get' not found; this script targets Debian/Ubuntu. Re-run with --skip-apt --skip-neovim and install those parts via your distro's package manager."
+    command -v curl >/dev/null 2>&1 || apt_install curl
+    command -v git  >/dev/null 2>&1 || apt_install git
+  fi
   mkdir -p "$HOME/.local/bin" "$HOME/.config"
   case ":$PATH:" in
     *":$HOME/.local/bin:"*) ;;

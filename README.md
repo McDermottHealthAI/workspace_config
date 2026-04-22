@@ -21,10 +21,13 @@ If you just want the whole stack on a fresh Linux machine, clone this repo and r
 ./deploy.sh
 ```
 
-The script is idempotent (safe to re-run) and performs every step described in the sections below:
-apt packages, fonts, `~/.inputrc`, starship, neovim + `tree-sitter-cli`, nvim config, `uv`, tmux + tpm, and
-ripgrep. Each section can be skipped with a flag — see `./deploy.sh --help`. Existing dotfiles are backed up
-to `<path>.bak.<timestamp>` before being overwritten. You still need `sudo` for the apt and snap steps.
+`deploy.sh` targets **Debian/Ubuntu** (it uses `apt-get`/`dpkg` and optionally `snap`); on other distros run
+it with `--skip-apt --skip-neovim` and install those parts via your distro's package manager, then re-run
+without the skip flags to handle the dotfile copies. The script is idempotent (safe to re-run) and performs
+every step described in the sections below: apt packages, fonts, `~/.inputrc`, starship, neovim +
+`tree-sitter-cli`, nvim config, `uv`, tmux + tpm, and ripgrep. Each section can be skipped with a flag — see
+`./deploy.sh --help`. Existing dotfiles are backed up to `<path>.bak.<timestamp>` before being overwritten.
+You still need `sudo` for the apt and snap steps.
 
 The remainder of this README documents what `deploy.sh` does, step by step, for anyone who prefers to run
 the commands manually or needs to debug a failure.
@@ -49,11 +52,10 @@ and `nvim` now errors on launch with *"failed to run config for nvim-treesitter"
    **Warning:** this discards anything you may have edited or checked out inside that directory. If you
    maintain local patches there, use `git -C ~/.local/share/nvim/lazy/nvim-treesitter checkout main`
    instead. Then launch `nvim` — lazy.nvim will re-clone (or switch) to the pinned `main` branch and the
-   new `config` callback will kick off `:TSInstall all` asynchronously. Budget 20-40 minutes for the full
-   parser set to compile on first run (longer on cold aarch64 boxes). Watch progress with `:Lazy log` and
-   `:TSLog`.
-5. Watch `:messages` and `:Lazy log` for install errors. If a specific parser fails, `:TSInstall <lang>`
-   retries just that one.
+   new `config` callback will start installing and compiling parsers automatically in the background.
+   Budget 20-40 minutes for the full parser set to finish on first run (longer on cold aarch64 boxes).
+5. Watch `:messages`, `:Lazy log`, and `:TSLog` for install errors. If a specific parser fails, fix the
+   underlying toolchain issue and relaunch `nvim` (or run `:TSInstall <lang>`) to retry just that one.
 
 Background on why this migration was needed is in
 [issue #2](https://github.com/McDermottHealthAI/workspace_config/issues/2).
@@ -149,8 +151,10 @@ chmod +x ~/.local/bin/tree-sitter
 ```
 
 On aarch64 (e.g., DGX Spark / Grace), swap `tree-sitter-linux-x64.gz` for `tree-sitter-linux-arm64.gz`. Make
-sure `~/.local/bin` is on your `PATH` (starship's installer above already puts things there). Do **not**
-install `tree-sitter-cli` via `npm` — the new plugin explicitly rejects the npm distribution.
+sure `~/.local/bin` is on your `PATH` — most distros include it for interactive bash via `~/.profile`, but
+non-login shells or stripped-down setups may need an explicit `export PATH="$HOME/.local/bin:$PATH"` in
+`~/.bashrc`. Do **not** install `tree-sitter-cli` via `npm` — the new plugin explicitly rejects the npm
+distribution.
 
 Neovim packages are managed by [lazy.nvim](https://github.com/folke/lazy.nvim). The configuration files I use
 with `lazy.nvim` are in the `.config/nvim` directory and need to be copied to the local `~/.config/nvim`
