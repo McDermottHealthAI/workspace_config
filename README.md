@@ -29,6 +29,21 @@ every step described in the sections below: apt packages, fonts, `~/.inputrc`, s
 `./deploy.sh --help`. Existing dotfiles are backed up to `<path>.bak.<timestamp>` before being overwritten.
 You still need `sudo` for the apt and snap steps.
 
+# Verifying the install: `check_health.sh`
+After deploying (or any time something feels off), run:
+
+```bash
+./check_health.sh
+```
+
+It checks external tools, version gates (Neovim ≥ 0.12, `tree-sitter-cli` ≥ 0.26.1), font registration,
+nvim config files, lazy.nvim plugin state, the nvim-treesitter branch + parser-compile count, and runs a
+headless `nvim` to confirm the config loads cleanly and the `material` colorscheme + `mdx` filetype alias
+are wired up. It also runs `:checkhealth` but **filters out the known-noisy warnings for this stack**
+(unused language providers, optional snacks integrations, terminal-graphics protocol checks, etc.). Pass
+`--verbose` for a plugin list and suppressed-line count, or `--raw-checkhealth` to see the full unfiltered
+`:checkhealth` output. Exit code is 0 when clean, non-zero on any real failure.
+
 The remainder of this README documents what `deploy.sh` does, step by step, for anyone who prefers to run
 the commands manually or needs to debug a failure.
 
