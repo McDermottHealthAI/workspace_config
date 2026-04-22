@@ -50,12 +50,27 @@ return {
   },
   {"jghauser/mkdir.nvim"},
   {
+    -- Pin the `main` branch explicitly. Upstream switched its default branch
+    -- from `master` to `main` as part of a ground-up rewrite; pinning keeps
+    -- the spec stable against any future default-branch flips.
     "nvim-treesitter/nvim-treesitter",
+    branch = "main",
+    lazy = false,
     build = ":TSUpdate",
     config = function()
-      require('nvim-treesitter.configs').setup({
-        ensure_installed = 'all',
-        highlight = { enable = true, additional_vim_regex_highlighting = {'python'} },
+      require("nvim-treesitter").install("all")
+      vim.api.nvim_create_autocmd("FileType", {
+        callback = function(args)
+          if not pcall(vim.treesitter.start, args.buf) then return end
+          vim.wo.foldexpr = "v:lua.vim.treesitter.foldexpr()"
+          vim.wo.foldmethod = "expr"
+          vim.bo[args.buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+          -- Preserve pre-migration `additional_vim_regex_highlighting = {'python'}`:
+          -- keep vim's regex syntax running alongside treesitter for python buffers.
+          if vim.bo[args.buf].filetype == "python" then
+            vim.bo[args.buf].syntax = "ON"
+          end
+        end,
       })
     end,
   },

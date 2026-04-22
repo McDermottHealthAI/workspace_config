@@ -14,6 +14,46 @@ The basic stack of tools I use are:
 On ssh connections I use [tmux](https://github.com/tmux/tmux/wiki) for terminal multiplexing; I don't use this
 locally as the warp terminal handles this for me.
 
+# Quickstart: `deploy.sh`
+If you just want the whole stack on a fresh Linux machine, clone this repo and run:
+
+```bash
+./deploy.sh
+```
+
+The script is idempotent (safe to re-run) and performs every step described in the sections below:
+apt packages, fonts, `~/.inputrc`, starship, neovim + `tree-sitter-cli`, nvim config, `uv`, tmux + tpm, and
+ripgrep. Each section can be skipped with a flag — see `./deploy.sh --help`. Existing dotfiles are backed up
+to `<path>.bak.<timestamp>` before being overwritten. You still need `sudo` for the apt and snap steps.
+
+The remainder of this README documents what `deploy.sh` does, step by step, for anyone who prefers to run
+the commands manually or needs to debug a failure.
+
+# Migrating an existing install
+If you've deployed this repo on a machine before the nvim-treesitter `main`-branch migration (pre-2026-04)
+and `nvim` now errors on launch with *"failed to run config for nvim-treesitter"*, follow these steps:
+
+1. Pull the latest config from this repo and re-copy `~/.config/nvim`:
+   ```bash
+   git pull
+   cp -r .config/nvim ~/.config/nvim   # or just re-run ./deploy.sh
+   ```
+2. Install `tree-sitter-cli` ≥ 0.26.1 (see the [tree-sitter-cli](#tree-sitter-cli) section below, or let
+   `deploy.sh` do it).
+3. Make sure your `nvim` is 0.12.0 or later (`nvim --version`). The `snap install --classic nvim` channel is
+   fine; older apt-packaged builds will need upgrading.
+4. Force lazy.nvim to switch `nvim-treesitter` from the archived `master` branch to `main`. The cleanest way:
+   ```bash
+   rm -rf ~/.local/share/nvim/lazy/nvim-treesitter
+   ```
+   Then launch `nvim` — lazy.nvim will re-clone the pinned `main` branch and the new `config` callback will
+   kick off `:TSInstall all` asynchronously. Parsers take a few minutes to compile on first run.
+5. Watch `:messages` and `:Lazy log` for install errors. If a specific parser fails, `:TSInstall <lang>`
+   retries just that one.
+
+Background on why this migration was needed is in
+[issue #2](https://github.com/McDermottHealthAI/workspace_config/issues/2).
+
 # Curl
 Install `curl` via apt:
 ```
@@ -79,6 +119,10 @@ Install neovim via snap:
 sudo snap install --classic nvim
 ```
 
+Neovim **0.12.0 or later** is required because `nvim-treesitter` is pinned to its rewritten `main` branch
+(see [#2](https://github.com/McDermottHealthAI/workspace_config/issues/2)); the `--classic nvim` snap tracks
+the latest stable, which is fine. Verify with `nvim --version` and upgrade if you're on an older build.
+
 For some of the neovim pakages, you'll also need to install `nodejs` and `npm` as well as `gcc`. To do so,
 install `build-essential` via apt:
 ```
@@ -86,6 +130,23 @@ sudo apt-get install build-essential
 ```
 
 Then visit [this page](https://nodejs.org/en/download/) to install the latest version of nodejs and npm.
+
+## tree-sitter-cli
+`nvim-treesitter` (on its `main` branch) compiles parsers from source and requires the
+[`tree-sitter-cli`](https://github.com/tree-sitter/tree-sitter) binary, **version 0.26.1 or later**, on your
+`PATH`. Ubuntu's `apt` package is too old (0.20.x at the time of writing), so install from the upstream
+GitHub release instead. On x86_64:
+
+```bash
+TS_VER=v0.26.8
+curl -LsSf "https://github.com/tree-sitter/tree-sitter/releases/download/${TS_VER}/tree-sitter-linux-x64.gz" \
+  | gunzip > ~/.local/bin/tree-sitter
+chmod +x ~/.local/bin/tree-sitter
+```
+
+On aarch64 (e.g., DGX Spark / Grace), swap `tree-sitter-linux-x64.gz` for `tree-sitter-linux-arm64.gz`. Make
+sure `~/.local/bin` is on your `PATH` (starship's installer above already puts things there). Do **not**
+install `tree-sitter-cli` via `npm` — the new plugin explicitly rejects the npm distribution.
 
 Neovim packages are managed by [lazy.nvim](https://github.com/folke/lazy.nvim). The configuration files I use
 with `lazy.nvim` are in the `.config/nvim` directory and need to be copied to the local `~/.config/nvim`
