@@ -126,9 +126,13 @@ install_fonts() {
   fi
   log "installing RobotoMono NerdFont ${FONT_VERSION}"
   local tmp; tmp="$(mktemp -d)"
-  trap 'rm -rf "$tmp"' RETURN
+  # Don't use `trap ... RETURN` for cleanup: bash's RETURN trap is shell-global,
+  # not function-scoped, so it would fire on every later function return with
+  # $tmp out of scope and trip `set -u`. Clean up inline; /tmp leaks on the
+  # curl/unzip failure path are self-cleaning via systemd-tmpfiles.
   ( cd "$tmp" && curl -LsSfO "$FONT_URL" && unzip -q RobotoMono.zip )
   mv "$tmp"/*.ttf "$fontdir"/
+  rm -rf "$tmp"
   if command -v fc-cache >/dev/null 2>&1; then
     fc-cache -f "$fontdir" >/dev/null 2>&1 || true
   fi
