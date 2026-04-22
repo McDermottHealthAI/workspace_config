@@ -95,8 +95,10 @@ return {
     end,
   },
   {
+    -- mdx.nvim ships its logic in after/plugin/mdx.lua and has no lua/ module,
+    -- so the previous `config = true` (which expanded to `require('mdx').setup()`)
+    -- failed with "module 'mdx' not found". Just let the after/plugin file run.
     "davidmh/mdx.nvim",
-    config = true,
-    dependencies = {"nvim-treesitter/nvim-treesitter"}
-  }
+    dependencies = {"nvim-treesitter/nvim-treesitter"},
+  },
 }
