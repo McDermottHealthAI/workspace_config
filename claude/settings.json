@@ -1,0 +1,47 @@
+{
+  "permissions": {
+    "allow": [
+      "Edit",
+      "Read",
+      "Bash(git *)",
+      "Bash(gh *)",
+      "Bash(uv *)",
+      "Bash(python *)",
+      "Bash(pytest *)",
+      "Bash(ruff *)",
+      "Bash(pre-commit *)",
+      "Bash(make *)",
+      "Bash(latexmk *)",
+      "Bash(pdflatex *)",
+      "Bash(xelatex *)",
+      "Bash(bibtex *)",
+      "Bash(cat *)",
+      "Bash(ls *)",
+      "Bash(find *)",
+      "Bash(grep *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(diff *)",
+      "Bash(mkdir *)",
+      "Bash(cp *)",
+      "Bash(mv *)",
+      "Bash(touch *)",
+      "Bash(echo *)",
+      "Bash(sort *)",
+      "Bash(sed *)",
+      "Bash(awk *)",
+      "Bash(xdg-open *)",
+      "Bash(pdftoppm *)",
+      "Bash(jupyter *)",
+      "Bash(pip *)"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(curl *)",
+      "Bash(wget *)"
+    ],
+    "defaultMode": "auto"
+  },
+  "skipAutoPermissionPrompt": true
+}

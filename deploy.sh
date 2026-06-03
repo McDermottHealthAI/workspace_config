@@ -12,9 +12,12 @@
 #   --skip-starship     don't install starship or modify ~/.bashrc
 #   --skip-tmux         don't copy tmux config or install tpm
 #   --skip-uv           don't install uv
+#   --skip-claude       don't install Claude Code / gh or configure MCP servers
+#   --only-claude       only run the Claude Code setup (skip all other steps)
 #   -h, --help          show this help
 #
-# Requires: bash, curl, git. Sudo is only used for apt.
+# Requires: bash, curl, git. Sudo is only used for apt. The Claude Code step
+# additionally uses Node.js/npm (auto-installed via apt if missing).
 
 set -euo pipefail
 
@@ -26,6 +29,7 @@ FONT_VERSION="v2.3.3"
 FONT_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${FONT_VERSION}/RobotoMono.zip"
 
 SKIP_APT=0 SKIP_FONTS=0 SKIP_NEOVIM=0 SKIP_STARSHIP=0 SKIP_TMUX=0 SKIP_UV=0
+SKIP_CLAUDE=0 ONLY_CLAUDE=0
 
 if [[ -t 1 ]]; then
   C_BLUE=$'\033[1;34m' C_YELLOW=$'\033[1;33m' C_RED=$'\033[1;31m' C_RESET=$'\033[0m'
@@ -37,7 +41,7 @@ log()  { printf '%s==>%s %s\n' "$C_BLUE"   "$C_RESET" "$*"; }
 warn() { printf '%s!!!%s %s\n' "$C_YELLOW" "$C_RESET" "$*" >&2; }
 die()  { printf '%sxxx%s %s\n' "$C_RED"    "$C_RESET" "$*" >&2; exit 1; }
 
-usage() { sed -n '2,17p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -47,6 +51,8 @@ while [[ $# -gt 0 ]]; do
     --skip-starship) SKIP_STARSHIP=1 ;;
     --skip-tmux)     SKIP_TMUX=1 ;;
     --skip-uv)       SKIP_UV=1 ;;
+    --skip-claude)   SKIP_CLAUDE=1 ;;
+    --only-claude)   ONLY_CLAUDE=1 ;;
     -h|--help)       usage; exit 0 ;;
     *)               die "unknown flag: $1 (try --help)" ;;
   esac
@@ -250,16 +256,139 @@ install_tmux() {
   warn "inside tmux, press 'prefix + I' (prefix is C-x) to fetch plugins"
 }
 
+# --- Claude Code -------------------------------------------------------------
+
+# True if `claude mcp list` already reports a server named "$1".
+claude_mcp_present() {
+  claude mcp list 2>/dev/null | grep -q "^$1:"
+}
+
+install_gh() {
+  if command -v gh >/dev/null 2>&1; then
+    log "gh (GitHub CLI) already installed ($(gh --version 2>/dev/null | head -1))"
+    return 0
+  fi
+  if (( SKIP_APT == 1 )); then
+    warn "gh not installed and --skip-apt set; install GitHub CLI manually: https://github.com/cli/cli#installation"
+    return 0
+  fi
+  log "installing gh (GitHub CLI) via apt"
+  sudo apt-get update -qq
+  if ! sudo apt-get install -y gh; then
+    warn "apt could not install 'gh'. Install it from the official repo: https://github.com/cli/cli/blob/trunk/docs/install_linux.md"
+  fi
+}
+
+# Major version of `node` on PATH, or empty string if node is absent/unparseable.
+node_major() {
+  command -v node >/dev/null 2>&1 || { printf ''; return; }
+  node --version 2>/dev/null | sed 's/^v//' | cut -d. -f1 | grep -E '^[0-9]+$' || printf ''
+}
+
+ensure_node() {
+  local major; major="$(node_major)"
+  if [[ -n "$major" ]] && (( major >= 18 )); then
+    log "node $(node --version) already installed"
+    return 0
+  fi
+  if [[ -n "$major" ]]; then
+    warn "node $(node --version) is older than v18 (Claude Code needs >=18); install a newer Node from https://nodejs.org or via nvm, then re-run ./deploy.sh --only-claude"
+    return 0
+  fi
+  if (( SKIP_APT == 1 )); then
+    warn "node/npm missing and --skip-apt set; install Node.js >=18 manually (https://nodejs.org), then re-run ./deploy.sh --only-claude"
+    return 0
+  fi
+  apt_install nodejs npm
+  major="$(node_major)"
+  if [[ -z "$major" ]] || (( major < 18 )); then
+    warn "apt installed node $(node --version 2>/dev/null || echo '?'), which is older than v18; Claude Code may fail to install or run. Install a newer Node from https://nodejs.org or via nvm, then re-run ./deploy.sh --only-claude"
+  fi
+}
+
+configure_mcp() {
+  command -v claude >/dev/null 2>&1 || return 0
+
+  # Library docs (no API key needed).
+  if claude_mcp_present context7; then
+    log "context7 MCP already configured"
+  else
+    log "adding context7 MCP (library docs)"
+    claude mcp add context7 --scope user -- npx -y @upstash/context7-mcp \
+      || warn "failed to add context7 MCP; add it later with: claude mcp add context7 --scope user -- npx -y @upstash/context7-mcp"
+  fi
+
+  # Web search (needs a Brave Search API key).
+  if claude_mcp_present brave-search; then
+    log "brave-search MCP already configured"
+    return 0
+  fi
+  local key="${BRAVE_API_KEY:-}"
+  if [[ -z "$key" && -t 0 ]]; then
+    printf 'Enter your Brave Search API key for web search (blank to skip): '
+    read -r key || key=""
+  fi
+  if [[ -n "$key" ]]; then
+    log "adding brave-search MCP (web search)"
+    claude mcp add brave-search --scope user -e BRAVE_API_KEY="$key" \
+      -- npx -y @modelcontextprotocol/server-brave-search \
+      || warn "failed to add brave-search MCP; add it later (see claude-code.md)"
+  else
+    warn "no Brave API key provided; skipping web-search MCP. Add it later with: claude mcp add brave-search --scope user -e BRAVE_API_KEY=your-key -- npx -y @modelcontextprotocol/server-brave-search"
+  fi
+}
+
+install_claude() {
+  (( SKIP_CLAUDE == 1 )) && { log "skipping Claude Code"; return 0; }
+
+  install_gh
+  ensure_node
+
+  if command -v claude >/dev/null 2>&1; then
+    log "Claude Code already installed ($(claude --version 2>/dev/null || echo present))"
+  elif command -v npm >/dev/null 2>&1; then
+    log "installing Claude Code via npm (-g)"
+    if ! npm install -g @anthropic-ai/claude-code; then
+      warn "global npm install failed (often a permissions issue). Retry with 'sudo npm install -g @anthropic-ai/claude-code', or configure a user-writable npm prefix, then re-run ./deploy.sh --only-claude"
+    fi
+  else
+    warn "npm not available; cannot install Claude Code. Install Node.js >=18 and re-run ./deploy.sh --only-claude"
+  fi
+
+  # Global defaults (auto mode + permission allow/deny). Non-destructive: never
+  # clobber an existing settings.json, which the user may have customized.
+  local settings="$HOME/.claude/settings.json"
+  mkdir -p "$HOME/.claude"
+  if [[ -e "$settings" ]]; then
+    warn "~/.claude/settings.json already exists; leaving it untouched. Compare against claude/settings.json in this repo for the recommended auto-mode + permissions config."
+  else
+    cp "$REPO_DIR/claude/settings.json" "$settings"
+    log "installed ~/.claude/settings.json (auto mode + permission allow/deny lists)"
+  fi
+
+  configure_mcp
+
+  if command -v gh >/dev/null 2>&1 && ! gh auth status >/dev/null 2>&1; then
+    warn "GitHub not authenticated yet — run 'gh auth login' (browser device-code flow)"
+  fi
+  warn "finish setup by running 'claude' once and signing in when the browser opens. See claude-code.md and the README 'Claude Code' section for the web accounts/keys you need."
+}
+
 main() {
   log "deploying workspace_config from $REPO_DIR"
   preflight
-  install_apt_base
-  install_fonts
-  install_inputrc
-  install_starship
-  install_neovim
-  install_uv
-  install_tmux
+  if (( ONLY_CLAUDE == 0 )); then
+    install_apt_base
+    install_fonts
+    install_inputrc
+    install_starship
+    install_neovim
+    install_uv
+    install_tmux
+  else
+    log "--only-claude: skipping all non-Claude steps"
+  fi
+  install_claude
   log "done. open a new shell to pick up PATH and starship changes."
 }
 

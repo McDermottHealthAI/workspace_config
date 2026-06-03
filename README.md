@@ -8,6 +8,9 @@ The basic stack of tools I use are:
     configuration for other shells).
   * `Neovim` for editing.
   * Github Copilot integrated into neovim.
+  * [Claude Code](https://docs.claude.com/en/docs/claude-code) as my terminal-based AI coding agent,
+    with `gh`, web search, and library-docs integrations — see [Claude Code](#claude-code-ai-coding-agent)
+    below and [`claude-code.md`](claude-code.md) for the full setup.
   * [uv](https://docs.astral.sh/uv/getting-started/installation/) for python package management.
   * [ripgrep](https://github.com/BurntSushi/ripgrep) for searching files quickly.
 
@@ -25,9 +28,11 @@ If you just want the whole stack on a fresh Linux machine, clone this repo and r
 it with `--skip-apt --skip-neovim` and install those parts via your distro's package manager, then re-run
 without the skip flags to handle the dotfile copies. The script is idempotent (safe to re-run) and performs
 every step described in the sections below: apt packages, fonts, `~/.inputrc`, starship, neovim +
-`tree-sitter-cli`, nvim config, `uv`, tmux + tpm, and ripgrep. Each section can be skipped with a flag — see
-`./deploy.sh --help`. Existing dotfiles are backed up to `<path>.bak.<timestamp>` before being overwritten.
-You still need `sudo` for the apt and snap steps.
+`tree-sitter-cli`, nvim config, `uv`, tmux + tpm, ripgrep, and [Claude Code](#claude-code-ai-coding-agent)
+(`gh` + MCP servers). Each section can be skipped with a flag — see `./deploy.sh --help`. To install just the
+Claude Code piece on a machine that already has the rest, run `./deploy.sh --only-claude`. Existing dotfiles
+are backed up to `<path>.bak.<timestamp>` before being overwritten. You still need `sudo` for the apt and
+snap steps.
 
 # Verifying the install: `check_health.sh`
 After deploying (or any time something feels off), run:
@@ -212,3 +217,60 @@ Install `ripgrep` via apt:
 ```bash
 sudo apt-get install ripgrep
 ```
+
+# Claude Code (AI coding agent)
+[Claude Code](https://docs.claude.com/en/docs/claude-code) is Anthropic's terminal-based AI coding
+agent. I run it with three integrations that make it dramatically more capable: the `gh` CLI (so it
+can manage GitHub for you), a **web search** server (so it can look things up online), and a
+**library-docs** server (so it reads real, current documentation instead of guessing). It also runs
+in **auto mode**, where routine, safe actions happen without stopping to ask you for permission each
+time.
+
+`deploy.sh` can install and configure all of this for you with `./deploy.sh` (or just this part with
+`./deploy.sh --only-claude`). Full command-by-command details and the exact settings are in
+[`claude-code.md`](claude-code.md).
+
+## What you need to set up yourself, on the web
+A few things can't be scripted — they require **you** to create accounts and copy keys from a
+website, because they're tied to your personal logins. You only do these once. **No coding
+experience is required**; each step is "open a web page, click a few buttons, copy a value." Do
+these *before* running the Claude Code part of `deploy.sh`: the script prompts you to paste your
+Brave key inline, and reminds you (at the end) of the two browser sign-ins — GitHub and Claude — you
+need to finish by hand.
+
+1. **A Claude account (required).** Claude Code needs an Anthropic login.
+   * Go to **https://claude.ai** and create an account (or sign in). A paid plan (Pro/Max) or
+     API credits is required to actually use Claude Code — see
+     https://www.anthropic.com/pricing.
+   * That's all you do on the web for this one. The first time you launch `claude` in a terminal it
+     will open your browser to finish signing in — just click **Allow**.
+
+2. **A GitHub account + login (required if you use GitHub).** This lets Claude open pull requests,
+   read issues, and check CI for you via the `gh` tool.
+   * If you don't have one, sign up at **https://github.com/signup**.
+   * `deploy.sh` installs the `gh` tool but leaves the login to you (it's a browser step). When it
+     reminds you, run `gh auth login`: it prints a short code and opens
+     **https://github.com/login/device** — type the code, click **Authorize**, and you're done.
+
+3. **A Brave Search API key (recommended — gives Claude web search).** Free tier is plenty.
+   * Go to **https://brave.com/search/api/** and click to get started / sign up.
+   * Create a subscription on the **Free** plan (it may ask for a card to verify, but the free tier
+     is not charged).
+   * Open the **API Keys** page in your Brave dashboard, create a key, and **copy the long string**
+     it gives you. Keep it somewhere safe for a moment.
+   * Paste it in when `deploy.sh` asks for your Brave API key (or set it later — see
+     [`claude-code.md`](claude-code.md)). Treat this key like a password; don't share it or commit
+     it to a repo.
+
+4. **Library docs — Context7 (recommended — no account needed).** This one is fully automatic and
+   needs **no signup and no key**. `deploy.sh` sets it up for you. It lets Claude pull up-to-date
+   documentation for whatever library you're using.
+
+5. **Connected apps like Slack, Gmail, Google Drive, Figma (optional).** These are extra and *not*
+   required to code. If you ever want Claude to read your Slack or Gmail, you add them later from
+   inside Claude Code, which opens a browser "Allow access?" page for each. See the
+   account-level servers note in [`claude-code.md`](claude-code.md).
+
+If you skip the optional items (3–5), Claude Code still works fully for editing code and using
+GitHub — you just lose web search and connected apps. You can always add them later by re-running
+`./deploy.sh --only-claude`.
