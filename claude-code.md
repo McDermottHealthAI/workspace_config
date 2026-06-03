@@ -10,14 +10,18 @@ All of this is `--scope user` / `~/.claude`-level, so it applies across every pr
 
 ## Install & authenticate
 
-Claude Code ships as an npm package and needs Node.js ≥ 18 (the same `nodejs`/`npm` install covered
-in the [Neovim](README.md#neovim) section of the main README).
+Claude Code ships as an npm package and needs Node.js ≥ 18. Install Node first if you don't have it
+(`sudo apt-get install nodejs npm` on Debian/Ubuntu, `brew install node` on macOS — `deploy.sh` does
+this for you, picking the right package manager per OS).
 
 ```bash
 npm install -g @anthropic-ai/claude-code
 claude --version
 claude auth login
 ```
+
+> On both Linux and macOS the `npm install -g`, MCP, and auth steps are identical; only the
+> underlying package manager for `gh`/Node differs (apt vs. Homebrew). `deploy.sh` auto-detects this.
 
 Run `claude` inside a project directory and it reads that project's `AGENTS.md` / `CLAUDE.md`
 automatically on session start.

@@ -1,6 +1,7 @@
 # Configuration Files & Development Setup
 This repository details my typical development stack. It is designed for use on remote servers (often without
-GUI access) and largely uses terminal based tools. It is current as of 2026-04-21.
+GUI access) and largely uses terminal based tools. It runs on **Linux (Debian/Ubuntu)** and **macOS** — see
+[Platform support](#platform-support-linux--macos) for the differences. It is current as of 2026-04-21.
 
 The basic stack of tools I use are:
   * Terminal: I'm trying [warp](https://www.warp.dev/) right now.
@@ -18,21 +19,40 @@ On ssh connections I use [tmux](https://github.com/tmux/tmux/wiki) for terminal 
 locally as the warp terminal handles this for me.
 
 # Quickstart: `deploy.sh`
-If you just want the whole stack on a fresh Linux machine, clone this repo and run:
+If you just want the whole stack on a fresh Linux or macOS machine, clone this repo and run:
 
 ```bash
 ./deploy.sh
 ```
 
-`deploy.sh` targets **Debian/Ubuntu** (it uses `apt-get`/`dpkg` and optionally `snap`); on other distros run
-it with `--skip-apt --skip-neovim` and install those parts via your distro's package manager, then re-run
-without the skip flags to handle the dotfile copies. The script is idempotent (safe to re-run) and performs
-every step described in the sections below: apt packages, fonts, `~/.inputrc`, starship, neovim +
-`tree-sitter-cli`, nvim config, `uv`, tmux + tpm, ripgrep, and [Claude Code](#claude-code-ai-coding-agent)
-(`gh` + MCP servers). Each section can be skipped with a flag — see `./deploy.sh --help`. To install just the
-Claude Code piece on a machine that already has the rest, run `./deploy.sh --only-claude`. Existing dotfiles
-are backed up to `<path>.bak.<timestamp>` before being overwritten. You still need `sudo` for the apt and
-snap steps.
+`deploy.sh` auto-detects your OS: on **Linux** it uses `apt-get`/`dpkg` and `snap` (Debian/Ubuntu); on
+**macOS** it uses [Homebrew](https://brew.sh). On other Linux distros, run it with `--skip-apt --skip-neovim`
+and install those parts via your distro's package manager, then re-run without the skip flags to handle the
+dotfile copies. The script is idempotent (safe to re-run) and performs every step described in the sections
+below: base packages, fonts, `~/.inputrc`, starship, neovim + `tree-sitter-cli`, nvim config, `uv`, tmux +
+tpm, ripgrep, and [Claude Code](#claude-code-ai-coding-agent) (`gh` + MCP servers). Each section can be
+skipped with a flag — see `./deploy.sh --help`. To install just the Claude Code piece on a machine that
+already has the rest, run `./deploy.sh --only-claude`. Existing dotfiles are backed up to
+`<path>.bak.<timestamp>` before being overwritten. On Linux you still need `sudo` for the apt and snap steps
+(Homebrew on macOS does not use `sudo`).
+
+## Platform support (Linux & macOS)
+The script and dotfiles work on both Linux and macOS; the differences are handled automatically, but a few
+are worth knowing:
+
+| Step | Linux (Debian/Ubuntu) | macOS |
+| --- | --- | --- |
+| Package installs (`ripgrep`, `tmux`, `gh`, `neovim`, `node`) | `apt-get` (needs `sudo`) | Homebrew (`brew`, no `sudo`) — install it first from [brew.sh](https://brew.sh) |
+| Neovim | `snap install --classic nvim` | `brew install neovim` |
+| `tree-sitter-cli` | Linux release binary | macOS release binary (auto-selected) |
+| Fonts | `~/.local/share/fonts` | `~/Library/Fonts` |
+| Compilers | `build-essential` (apt) | Xcode Command Line Tools (`xcode-select --install`) |
+| Clipboard in nvim | needs `xclip` | works natively (`pbcopy`) |
+| Shell prompt | wired into `~/.bashrc` | wired into `~/.bashrc`; if you use the default **zsh**, add `eval "$(starship init zsh)"` to `~/.zshrc` instead |
+
+Cross-platform pieces (`starship`, `uv`, Claude Code via `npm`, and all the MCP setup) behave identically on
+both. If Homebrew is missing on macOS, the package-install steps are skipped with a warning while the dotfile
+copies and `curl`-based installers still run — install `brew` and re-run to finish.
 
 # Verifying the install: `check_health.sh`
 After deploying (or any time something feels off), run:

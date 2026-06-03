@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Deploy this workspace configuration on a fresh Linux machine.
+# Deploy this workspace configuration on a fresh Linux or macOS machine.
 #
 # Idempotent: safe to re-run. Existing files are backed up to `<path>.bak.<ts>`
 # before being overwritten. Steps that are already done (e.g. starship on PATH,
 # tpm cloned) are skipped.
 #
 # Usage: ./deploy.sh [flags]
-#   --skip-apt          don't run `sudo apt-get install ...` steps
+#   --skip-apt          don't run OS package-manager installs (apt on Linux,
+#                       Homebrew on macOS)
 #   --skip-fonts        don't download/install the NerdFont
 #   --skip-neovim       don't install neovim snap or tree-sitter-cli or nvim config
 #   --skip-starship     don't install starship or modify ~/.bashrc
@@ -16,12 +17,14 @@
 #   --only-claude       only run the Claude Code setup (skip all other steps)
 #   -h, --help          show this help
 #
-# Requires: bash, curl, git. Sudo is only used for apt. The Claude Code step
-# additionally uses Node.js/npm (auto-installed via apt if missing).
+# Requires: bash, curl, git. On Linux, package installs use apt (sudo) and
+# neovim uses snap; on macOS they use Homebrew (no sudo). The Claude Code step
+# additionally uses Node.js/npm (auto-installed via the OS package manager).
 
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+OS="$(uname -s)"   # Linux or Darwin (macOS)
 TIMESTAMP="$(date +%Y%m%d%H%M%S)"
 TREE_SITTER_VERSION="v0.26.8"
 TREE_SITTER_MIN_VERSION="0.26.1"
@@ -41,7 +44,7 @@ log()  { printf '%s==>%s %s\n' "$C_BLUE"   "$C_RESET" "$*"; }
 warn() { printf '%s!!!%s %s\n' "$C_YELLOW" "$C_RESET" "$*" >&2; }
 die()  { printf '%sxxx%s %s\n' "$C_RED"    "$C_RESET" "$*" >&2; exit 1; }
 
-usage() { sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,22p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -94,32 +97,89 @@ apt_install() {
   sudo apt-get install -y "${missing[@]}"
 }
 
-preflight() {
-  [[ "$(uname -s)" == "Linux" ]] || die "this script targets Linux; detected $(uname -s)"
-  if (( SKIP_APT == 1 )); then
-    # apt steps are off, so any required dep that's missing won't be auto-installed —
-    # fail loudly here instead of crashing later in an unrelated step.
-    command -v curl >/dev/null 2>&1 || die "--skip-apt was set but 'curl' is missing; install it manually first"
-    command -v git  >/dev/null 2>&1 || die "--skip-apt was set but 'git' is missing; install it manually first"
-  else
-    command -v apt-get >/dev/null 2>&1 || die "'apt-get' not found; this script targets Debian/Ubuntu. Re-run with --skip-apt --skip-neovim and install those parts via your distro's package manager."
-    command -v curl >/dev/null 2>&1 || apt_install curl
-    command -v git  >/dev/null 2>&1 || apt_install git
+brew_install() {
+  (( SKIP_APT == 1 )) && { warn "skipping brew install: $*"; return 0; }
+  if ! command -v brew >/dev/null 2>&1; then
+    warn "Homebrew not found; cannot install: $*. Install it from https://brew.sh and re-run."
+    return 0
   fi
+  local missing=()
+  for pkg in "$@"; do
+    brew list --formula "$pkg" >/dev/null 2>&1 || missing+=("$pkg")
+  done
+  if (( ${#missing[@]} == 0 )); then
+    log "brew packages already installed: $*"
+    return 0
+  fi
+  log "installing via brew: ${missing[*]}"
+  brew install "${missing[@]}"
+}
+
+# OS-agnostic package install: apt on Linux, Homebrew on macOS. Package names are
+# assumed identical across the two (true for the formulas this script uses:
+# ripgrep, tmux, gh, neovim, node). Callers needing per-OS names branch on $OS.
+pkg_install() {
+  if [[ "$OS" == Darwin ]]; then
+    brew_install "$@"
+  else
+    apt_install "$@"
+  fi
+}
+
+preflight() {
+  case "$OS" in
+    Linux)
+      if (( SKIP_APT == 1 )); then
+        # apt steps are off, so any required dep that's missing won't be auto-installed —
+        # fail loudly here instead of crashing later in an unrelated step.
+        command -v curl >/dev/null 2>&1 || die "--skip-apt was set but 'curl' is missing; install it manually first"
+        command -v git  >/dev/null 2>&1 || die "--skip-apt was set but 'git' is missing; install it manually first"
+      else
+        command -v apt-get >/dev/null 2>&1 || die "'apt-get' not found; this script targets Debian/Ubuntu on Linux. Re-run with --skip-apt --skip-neovim and install those parts via your distro's package manager."
+        command -v curl >/dev/null 2>&1 || apt_install curl
+        command -v git  >/dev/null 2>&1 || apt_install git
+      fi
+      ;;
+    Darwin)
+      # macOS ships curl; git comes with the Xcode Command Line Tools. Homebrew
+      # is the package manager — warn (don't die) if absent so the dotfile copies
+      # and curl-based installers (starship, uv) still run.
+      command -v git  >/dev/null 2>&1 || die "'git' not found; install the Xcode Command Line Tools first: xcode-select --install"
+      command -v curl >/dev/null 2>&1 || die "'curl' not found (unexpected on macOS)"
+      if (( SKIP_APT == 0 )) && ! command -v brew >/dev/null 2>&1; then
+        warn "Homebrew not found; package installs (ripgrep, tmux, neovim, gh, node) will be skipped. Install it from https://brew.sh and re-run. Dotfile copies and curl-based installers will still run."
+      fi
+      ;;
+    *)
+      die "this script supports Linux and macOS; detected $OS"
+      ;;
+  esac
   mkdir -p "$HOME/.local/bin" "$HOME/.config"
   case ":$PATH:" in
     *":$HOME/.local/bin:"*) ;;
-    *) warn "~/.local/bin is not on PATH; you may need to add it to ~/.bashrc manually" ;;
+    *) warn "~/.local/bin is not on PATH; you may need to add it to your shell rc (~/.bashrc or ~/.zshrc) manually" ;;
   esac
 }
 
-install_apt_base() {
-  apt_install build-essential unzip wget xclip ripgrep
+install_base_packages() {
+  if [[ "$OS" == Darwin ]]; then
+    # macOS: compilers come from the Xcode Command Line Tools (not a brew
+    # formula); unzip is built in; clipboard works natively in nvim (pbcopy), so
+    # no xclip. Just ripgrep via brew.
+    if ! xcode-select -p >/dev/null 2>&1; then
+      warn "Xcode Command Line Tools not detected; if compiles fail run: xcode-select --install"
+    fi
+    brew_install ripgrep
+  else
+    apt_install build-essential unzip wget xclip ripgrep
+  fi
 }
 
 install_fonts() {
   (( SKIP_FONTS == 1 )) && { log "skipping fonts"; return 0; }
-  local fontdir="$HOME/.local/share/fonts"
+  # macOS reads user fonts from ~/Library/Fonts; Linux from ~/.local/share/fonts.
+  local fontdir
+  if [[ "$OS" == Darwin ]]; then fontdir="$HOME/Library/Fonts"; else fontdir="$HOME/.local/share/fonts"; fi
   # Version-pinned sentinel. The archive ships files like
   # `Roboto Mono Bold Nerd Font Complete.ttf` (with spaces), which makes
   # glob-based idempotency checks fragile; a sentinel sidesteps that and
@@ -165,11 +225,21 @@ install_starship() {
   else
     log "starship already wired into ~/.bashrc"
   fi
+  if [[ "$OS" == Darwin ]]; then
+    warn "wired starship into ~/.bashrc; macOS defaults to zsh — if you use zsh, add 'eval \"\$(starship init zsh)\"' to ~/.zshrc instead"
+  fi
 }
 
 install_neovim() {
   (( SKIP_NEOVIM == 1 )) && { log "skipping neovim"; return 0; }
-  if ! command -v snap >/dev/null 2>&1; then
+  if [[ "$OS" == Darwin ]]; then
+    if command -v nvim >/dev/null 2>&1; then
+      log "neovim already installed ($(nvim --version | head -1))"
+    else
+      log "installing neovim via brew"
+      brew_install neovim
+    fi
+  elif ! command -v snap >/dev/null 2>&1; then
     warn "snap not available; install neovim 0.12+ manually"
   elif ! snap list nvim >/dev/null 2>&1; then
     log "installing neovim via snap (--classic)"
@@ -180,12 +250,14 @@ install_neovim() {
 
   local arch; arch="$(uname -m)"
   local asset
-  case "$arch" in
-    x86_64|amd64)   asset="tree-sitter-linux-x64.gz" ;;
-    aarch64|arm64)  asset="tree-sitter-linux-arm64.gz" ;;
-    armv7l|armhf)   asset="tree-sitter-linux-arm.gz" ;;
-    ppc64le)        asset="tree-sitter-linux-powerpc64.gz" ;;
-    *)              die "unsupported arch for tree-sitter-cli: $arch" ;;
+  case "$OS-$arch" in
+    Linux-x86_64|Linux-amd64)   asset="tree-sitter-linux-x64.gz" ;;
+    Linux-aarch64|Linux-arm64)  asset="tree-sitter-linux-arm64.gz" ;;
+    Linux-armv7l|Linux-armhf)   asset="tree-sitter-linux-arm.gz" ;;
+    Linux-ppc64le)              asset="tree-sitter-linux-powerpc64.gz" ;;
+    Darwin-x86_64)              asset="tree-sitter-macos-x64.gz" ;;
+    Darwin-arm64)               asset="tree-sitter-macos-arm64.gz" ;;
+    *)                          die "unsupported OS/arch for tree-sitter-cli: $OS/$arch" ;;
   esac
 
   local ts_bin="$HOME/.local/bin/tree-sitter"
@@ -244,7 +316,7 @@ install_uv() {
 
 install_tmux() {
   (( SKIP_TMUX == 1 )) && { log "skipping tmux"; return 0; }
-  apt_install tmux
+  pkg_install tmux
   backup_then_copy "$REPO_DIR/.tmux.conf" "$HOME/.tmux.conf"
   local tpm_dir="$HOME/.tmux/plugins/tpm"
   if [[ -d "$tpm_dir/.git" ]]; then
@@ -269,7 +341,12 @@ install_gh() {
     return 0
   fi
   if (( SKIP_APT == 1 )); then
-    warn "gh not installed and --skip-apt set; install GitHub CLI manually: https://github.com/cli/cli#installation"
+    warn "gh not installed and package installs skipped; install GitHub CLI manually: https://github.com/cli/cli#installation"
+    return 0
+  fi
+  if [[ "$OS" == Darwin ]]; then
+    brew_install gh
+    command -v gh >/dev/null 2>&1 || warn "could not install gh via brew; see https://github.com/cli/cli#installation"
     return 0
   fi
   log "installing gh (GitHub CLI) via apt"
@@ -296,13 +373,17 @@ ensure_node() {
     return 0
   fi
   if (( SKIP_APT == 1 )); then
-    warn "node/npm missing and --skip-apt set; install Node.js >=18 manually (https://nodejs.org), then re-run ./deploy.sh --only-claude"
+    warn "node/npm missing and package installs skipped; install Node.js >=18 manually (https://nodejs.org), then re-run ./deploy.sh --only-claude"
     return 0
   fi
-  apt_install nodejs npm
+  if [[ "$OS" == Darwin ]]; then
+    brew_install node            # Homebrew's node formula is current (>=18)
+  else
+    apt_install nodejs npm
+  fi
   major="$(node_major)"
   if [[ -z "$major" ]] || (( major < 18 )); then
-    warn "apt installed node $(node --version 2>/dev/null || echo '?'), which is older than v18; Claude Code may fail to install or run. Install a newer Node from https://nodejs.org or via nvm, then re-run ./deploy.sh --only-claude"
+    warn "installed node $(node --version 2>/dev/null || echo '?'), which is older than v18; Claude Code may fail to install or run. Install a newer Node from https://nodejs.org or via nvm, then re-run ./deploy.sh --only-claude"
   fi
 }
 
@@ -378,7 +459,7 @@ main() {
   log "deploying workspace_config from $REPO_DIR"
   preflight
   if (( ONLY_CLAUDE == 0 )); then
-    install_apt_base
+    install_base_packages
     install_fonts
     install_inputrc
     install_starship
